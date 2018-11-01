@@ -4,6 +4,7 @@ const request = require('request-promise');
 const csv = require('csvtojson');
 const readline = require('readline');
 const { google } = require('googleapis');
+const CronJob = require('cron').CronJob;
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 const TOKEN_PATH = 'token.json';
@@ -40,13 +41,32 @@ const file = fs.readFileSync('eventim.config');
 const line = file.toString('utf8').split('\n');
 
 const sheetId = line[0].split(/=(.+)/)[1];
+const timeExecute = line[1].split(/=(.+)/)[1];
 let browser;
+let isRunning = false;
 
 // Load client secrets from a local file.
 fs.readFile('credentials.json', (err, content) => {
     if (err) return console.log('Error loading client secret file:', err);
     // Authorize a client with credentials, then call the Google Sheets API.
-    authorize(JSON.parse(content), listMajors);
+
+    const job = new CronJob(
+        {
+            cronTime: timeExecute,
+            onTick: function () {
+
+                if (!isRunning) {
+                    isRunning = true;
+
+                    setTimeout(function () {
+                        authorize(JSON.parse(content), listMajors);
+                        isRunning = false;
+                    }, 3000);
+                }
+
+            }
+        })
+    job.start();
 });
 
 /**
@@ -228,7 +248,7 @@ function listMajors(auth) {
 
                                 await page.waitFor(5000);
 
-                                await page.evaluate(async (params)=> {
+                                await page.evaluate(async (params) => {
 
                                     document.getElementById('card.cardNumber').value = params.cartao_numero;
                                     document.getElementById('card.cardHolderName').value = params.cartao_nome;
@@ -237,7 +257,7 @@ function listMajors(auth) {
                                     document.getElementById('card.expiryYear').value = params.cartao_expira_ano;
 
                                     document.querySelector('input.paySubmit').click();
-                                
+
                                 }, params);
 
                                 index++;
